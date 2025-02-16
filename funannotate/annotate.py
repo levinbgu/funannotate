@@ -138,8 +138,8 @@ def SwissProtBlast(input, cpus, evalue, tmpdir, GeneDict, diamond=True):
             if num_hits > 0:
                 length = hits[0].hsps[0].aln_span
                 pident = hits[0].hsps[0].ident_num / float(length)
-                if pident < 0.6:
-                    continue
+                # if pident < 0.6:
+                    # continue
                 diff = length / float(qlen)
                 if diff < 0.6:
                     continue
@@ -147,12 +147,13 @@ def SwissProtBlast(input, cpus, evalue, tmpdir, GeneDict, diamond=True):
                 name = hits[0].description.split("GN=")[-1]
                 name = name.split(" ")[0].upper()
                 name = name.replace("-", "")
+          
                 passname = None
                 if (
                     "_" not in name
                     and " " not in name
                     and "." not in name
-                    and number_present(name)
+                    # and number_present(name)
                     and len(name) > 2
                     and not morethanXnumbers(name, 3)
                 ):
@@ -166,6 +167,7 @@ def SwissProtBlast(input, cpus, evalue, tmpdir, GeneDict, diamond=True):
                 total += 1
                 # add to GeneDict
                 if passname:
+                    # lib.log.info(f"%s: valid gene/product" % (passname))
                     counter += 1
                     if ID not in GeneDict:
                         GeneDict[ID] = [
@@ -462,8 +464,6 @@ def get_emapper_version():
     m = re.match(r"emapper-(\S+)", vers)
     if m:
         vers = m.group(1)
-        if vers.find("-") >= 0:
-            vers = vers.split("-")[0]
         return vers
     else:
         return False
@@ -715,10 +715,6 @@ def main(args):
             Transcripts = os.path.join(
                 outputdir, "annotate_misc", "genome.transcripts.fasta"
             )
-            CDS = os.path.join(
-                outputdir, "annotate_misc", "genome.cds.fasta"
-            )
-            
             GFF = os.path.join(outputdir, "annotate_misc", "genome.gff3")
             annotTBL = os.path.join(outputdir, "annotate_misc", "genome.tbl")
             lib.log.info("Checking GenBank file for annotation")
@@ -726,8 +722,8 @@ def main(args):
                 lib.log.error("Found no annotation in GenBank file, exiting")
                 sys.exit(1)
             GeneCounts = lib.gb2parts(
-                genbank, annotTBL, GFF, Proteins, Transcripts, CDS, Scaffolds
-                )
+                genbank, annotTBL, GFF, Proteins, Transcripts, Scaffolds
+            )
     else:
         # should be a folder, with funannotate files, thus store results there, no need to create output folder
         if not os.path.isdir(args.input):
@@ -801,9 +797,6 @@ def main(args):
             Transcripts = os.path.join(
                 outputdir, "annotate_misc", "genome.transcripts.fasta"
             )
-            CDS = os.path.join(
-                outputdir, "annotate_misc", "genome.cds.fasta"
-            )
             if TBL:
                 lib.log.info("Existing tbl found: {:}".format(TBL))
                 shutil.copyfile(TBL, annotTBL)
@@ -819,7 +812,7 @@ def main(args):
             else:
                 GFF = os.path.join(outputdir, "annotate_misc", "genome.gff3")
                 GeneCounts = lib.gb2parts(
-                    genbank, annotTBL, GFF, Proteins, Transcripts, CDS, Scaffolds
+                    genbank, annotTBL, GFF, Proteins, Transcripts, Scaffolds
                 )
 
     # double check that you have a TBL file, otherwise will have nothing to append to.
@@ -1097,7 +1090,11 @@ def main(args):
             ID, product = line.split("\t")
             if not ID in CuratedNames:
                 CuratedNames[ID] = product
-
+    import pickle 
+    GeneProducts_file = os.path.join(outputdir, "annotate_misc", "saved_dictionary.pkl"
+    )
+    with open(GeneProducts_file, 'wb') as f:
+        pickle.dump(GeneProducts, f)
     GeneSeen = {}
     NeedCurating = {}
     NotInCurated = {}
@@ -1105,13 +1102,16 @@ def main(args):
     for k, v in natsorted(list(GeneProducts.items())):
         GeneName = None
         GeneProduct = None
-        for x in v:
-            if x["name"] in CuratedNames:
-                GeneProduct = CuratedNames.get(x["name"])
-                GeneName = x["name"]
-            elif x["name"].lower() in CuratedNames:
-                GeneProduct = CuratedNames.get(x["name"].lower())
-                GeneName = x["name"]
+        # for x in v:
+            # if x["name"] in CuratedNames:
+                # GeneProduct = CuratedNames.get(x["name"])
+                # GeneName = x["name"]
+            # elif x["name"].lower() in CuratedNames:
+                # GeneProduct = CuratedNames.get(x["name"].lower())
+                # GeneName = x["name"]
+            # else:
+                # GeneProduct = x["product"]
+                # GeneName    = x["name"]
         if (
             not GeneName
         ):  # taking first one will default to swissprot if products for both
@@ -1326,7 +1326,7 @@ def main(args):
     )
     if args.signalp:
         shutil.copyfile(args.signalp, signalp_out)
-    if lib.which("signalp") or lib.which("signalp6") or lib.checkannotations(signalp_out):
+    if lib.which("signalp") or lib.checkannotations(signalp_out):
         if not lib.checkannotations(signalp_out):
             lib.log.info("Predicting secreted proteins with SignalP")
             if shutil.which("signalp6") is not None:
@@ -1521,20 +1521,20 @@ def main(args):
                 lib.log.error(
                     "Mitochondrial pass thru mocde {} is not an integer".format(mcode)
                 )
-        if isinstance(mcode, int):
-            # now we can safely add to genome.fsa
-            with open(tbl2genome, "a") as outfile:
-                with open(mitocontigs, "r") as infile:
-                    for rec in SeqIO.parse(infile, "fasta"):
-                        if "circular" in rec.description:
-                            topology = "[topology=circular] "
-                        else:
-                            topology = ""
-                        outfile.write(
-                            ">{} [mcode={}] {}[location=mitochondrion]\n{}\n".format(
-                                rec.id, mcode, topology, lib.softwrap(str(rec.seq))
-                            ))
-
+            if isinstance(mcode, int):
+                # now we can safely add to genome.fsa
+                with open(tbl2genome, "a") as outfile:
+                    with open(mitocontigs, "r") as infile:
+                        for rec in SeqIO.parse(infile, "fasta"):
+                            if "circular" in rec.description:
+                                topology = "[topology=circular] "
+                            else:
+                                topology = ""
+                            outfile.write(
+                                ">{} [mcode={}] {}[location=mitochondrion]\n{}\n".format(
+                                    rec.id, mcode, topology, lib.softwrap(str(rec.seq))
+                                )
+                            )
 
     # add annotation to tbl annotation file, generate dictionary of dictionaries with values as a list
     # need to keep multiple transcripts annotations separate, so this approach may have to modified
